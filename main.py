@@ -6,7 +6,7 @@ from weChat.tool import get_weChat_access_token
 import requests
 
 """
-    引用 FastAPI 函数
+    引用 FastAPI 函数lijiaao
 """
 from weChat.tool import get_weChat_access_token
 
