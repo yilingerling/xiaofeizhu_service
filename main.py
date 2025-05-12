@@ -27,8 +27,7 @@ async def root():
     return "RkQ6AjqTeAApB2BK"
 
 @app.get("/getapprovalinfo")
-async def getapprovalinfo():
-
+async def getapprovalinfo(starttime:int, endtime:int):
     url = f'https://qyapi.weixin.qq.com/cgi-bin/oa/getapprovalinfo?access_token={app.state.access_token}'
     now = int(time.time())
     start = now - 7 * 24 * 60 * 60
@@ -46,7 +45,7 @@ async def getapprovalinfo():
 
         response = requests.post(url, json=data).json()
 
-        print(response)
+        # print(response)
 
         approvals.extend(response.get("sp_no_list", []))
 
@@ -71,6 +70,6 @@ async def getapprovalinfo():
 
 
     # 保存 JSON 文件
-    with open("./data.json", "w", encoding="utf-8") as f:
-        json.dump(response2Arr, f, ensure_ascii=False, indent=4)
+    # with open("./data.json", "w", encoding="utf-8") as f:
+    #     json.dump(response2Arr, f, ensure_ascii=False, indent=4)
 
