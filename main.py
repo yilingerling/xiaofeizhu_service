@@ -8,12 +8,11 @@ import requests
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 import os
+import sys
 """
     引用 FastAPI 函数lijiaao
 """
 from weChat.tool import get_weChat_access_token
-
-
 
 app = FastAPI()
 
@@ -24,7 +23,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.mount("/images", StaticFiles(directory="static/images"), name="images")
+
+if getattr(sys, 'frozen', False):
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
 """
     项目启动时自动调用 存进本地缓存
 """
@@ -66,28 +74,18 @@ async def getapprovalinfo(starttime: str,endtime: str,template_id: str):
         next_cursor = response.get("new_next_cursor", "")
         if not next_cursor:
             break
-
     response2Arr = []
-
     # 方法2: 使用for循环
     for item in approvals:
-
         url2 = f'https://qyapi.weixin.qq.com/cgi-bin/oa/getapprovaldetail?access_token={app.state.access_token}'
-
         data2 = {
             "sp_no": item
         }
-
         response2 = requests.post(url2, json=data2)
-        # print(response2.json()['info']['sp_name'],response2.json()['info']['template_id'])
-        # if str(response2.json()['info']['sp_name']) in "采购报销单":
         response2Arr.append(response2.json())
-         # print(response2.json()['info']['sp_name'], response2.json()['info']['template_id'])
-    # print(response2Arr[0])
-
     # 保存 JSON 文件
-    with open("data.json", "w", encoding="utf-8") as f:
-        json.dump(response2Arr, f, ensure_ascii=False, indent=4)
+    # with open("data.json", "w", encoding="utf-8") as f:
+    #     json.dump(response2Arr, f, ensure_ascii=False, indent=4)
 
     return {
             "code":200,
@@ -109,11 +107,11 @@ async def getPicture(media_ids: List[str] = Query(alias="media_ids[]")):
             # 将图片保存到本地
             with open(f"static/images/{item}.jpg", "wb") as f:
                 f.write(response.content)
-            print("图片已保存为 downloaded_image.jpg")
+            # print("图片已保存为 downloaded_image.jpg")
         else:
             print("请求失败，状态码：", response.status_code)
             print("响应内容：", response.text)
-        responseImagesArr.append(f"http://localhost:8080/images/{item}.jpg")
+        responseImagesArr.append(f"https://xiaofeizhu.chat/api/images/{item}.jpg")
     return responseImagesArr
 
 """
@@ -132,3 +130,7 @@ def clear_static_folder():
             print(f"已删除: {file_path}")
         except Exception as e:
             print(f"删除失败 {file_path}，原因: {e}")
+
+
+
+
