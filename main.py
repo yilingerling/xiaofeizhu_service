@@ -10,7 +10,7 @@ import fdb
 from fastapi import FastAPI, HTTPException,Query
 from pydantic import BaseModel
 from typing import List
-
+import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 
@@ -104,7 +104,7 @@ async def getapprovalinfo(getappdata:Getappdata):
             data = {
                 "starttime": int(getappdata.starttime),
                 "endtime":  int(getappdata.endtime),
-                "new_cursor": next_cursor,  # 注意是 cursor，不是 new_cursor
+                "new_cursor": next_cursor,
                 "size": 9999,  # 最大 100
                 "filters": [
                     {
@@ -130,9 +130,10 @@ async def getapprovalinfo(getappdata:Getappdata):
 
         # 存储结构
         response2Arr = []
-        page_size = 5 # 每次返回的数据总量
+        page_size = 20 # 每次返回的数据总量
         start = (int(getappdata.current_page) - 1) * page_size
         end = int(getappdata.current_page) * page_size
+
         for item in approvals[start:end]:
             url2 = f'https://qyapi.weixin.qq.com/cgi-bin/oa/getapprovaldetail?access_token={app.state.access_token}'
             data2 = {"sp_no": item}
@@ -153,7 +154,17 @@ async def getapprovalinfo(getappdata:Getappdata):
         # 查询 xfzadmin 用户
         cur.execute("SELECT ACCOUNT_PERMISSION,COLUMN_PERMISSION,USERNAME FROM XFZUSERS WHERE ID = ?", (getappdata.user_id,))
         row = cur.fetchone()
+
+        if row is None:
+            return {
+                "code": 404,
+                "message": "未找到用户权限信息",
+                "data": []
+            }
+
         ACCOUNT_PERMISSION, COLUMN_PERMISSION,USERNAME = row
+
+
 
         # 获取映射 userid to username
         userid_to_name = await get_userid_to_name(app.state.access_token)
@@ -167,81 +178,9 @@ async def getapprovalinfo(getappdata:Getappdata):
 
         response3Arr = []
 
-        if USERNAME == "吴帆" or getappdata.template_id == "C4WpQo3ea7rQP94wTQsKznpp4kir1ZczvjDtcPSF3" or getappdata.template_id == "C4WpQo3ea7rQP94wTQsKznpp4kir1aNegvUucTbBg":
+        if USERNAME == "WuFan" or getappdata.template_id == "C4WpQo3ea7rQP94wTQsKznpp4kir1ZczvjDtcPSF3" or getappdata.template_id == "C4WpQo3ea7rQP94wTQsKznpp4kir1aNegvUucTbBg":
             response3Arr = response2Arr
         else:
-
-            # for j,item in enumerate(response2Arr):
-            #
-            #     userids = []
-            #
-            #     # 取出 node_list 所有审批流信息
-            #     node_list = item["info"]["process_list"]["node_list"]
-            #
-            #     # 这里有几条就得遍历几次
-            #     for i,node in enumerate(node_list):
-            #
-            #         if node.get("sp_status") and node.get("sp_status") == 1 and getappdata.sp_status == "1":
-            #
-            #             print(f"审批中 外层：{j} 内层：{i} 编号：{item['info']['sp_no']}")
-            #
-            #             xiaoshou_type = ""
-            #
-            #             for content in item['info']['apply_data']['contents']:
-            #                 for t in content.get("title", []):
-            #                     text = t.get("text", "")
-            #                     if text == "销售类型":
-            #                         xiaoshou_type = content["value"]['selector']['options'][0]['value'][0]['text']
-            #                         break
-            #                 break
-            #
-            #             for sub_node in node['sub_node_list']:
-            #                 userids.append(sub_node['userid'])
-            #
-            #             if xiaoshou_type == "采购销售" and json.loads(ACCOUNT_PERMISSION)[0]:
-            #                 # 发现跟当前用户匹配的数据
-            #                 if USERNAME in userids:
-            #                     response3Arr.append(item)
-            #             if xiaoshou_type == "囤货销售" and json.loads(ACCOUNT_PERMISSION)[1]:
-            #                 # 发现跟当前用户匹配的数据
-            #                 if USERNAME in userids:
-            #                     response3Arr.append(item)
-            #             if xiaoshou_type != "采购销售" and xiaoshou_type != "囤货销售" and json.loads(ACCOUNT_PERMISSION)[2]:
-            #                 # 发现跟当前用户匹配的数据
-            #                 if USERNAME in userids:
-            #                     response3Arr.append(item)
-            #
-            #         elif getappdata.sp_status == "2":
-            #
-            #             print(f"已通过 外层：{j} 内层：{i} 编号：{item['info']['sp_no']}")
-            #
-            #             xiaoshou_type = ""
-            #
-            #             for content in item['info']['apply_data']['contents']:
-            #                 for t in content.get("title", []):
-            #                     text = t.get("text", "")
-            #                     if text == "销售类型":
-            #                         xiaoshou_type = content["value"]['selector']['options'][0]['value'][0]['text']
-            #                         break
-            #                 break
-            #
-            #             for sub_node in node['sub_node_list']:
-            #                 userids.append(sub_node['userid'])
-            #
-            #             if xiaoshou_type == "采购销售" and json.loads(ACCOUNT_PERMISSION)[0]:
-            #                 # 发现跟当前用户匹配的数据
-            #                 if USERNAME in userids:
-            #                     response3Arr.append(item)
-            #             if xiaoshou_type == "囤货销售" and json.loads(ACCOUNT_PERMISSION)[1]:
-            #                 # 发现跟当前用户匹配的数据
-            #                 if USERNAME in userids:
-            #                     response3Arr.append(item)
-            #             if xiaoshou_type != "采购销售" and xiaoshou_type != "囤货销售" and json.loads(ACCOUNT_PERMISSION)[2]:
-            #                 # 发现跟当前用户匹配的数据
-            #                 if USERNAME in userids:
-            #                     response3Arr.append(item)
-
-            # 处理请求数据
 
             for item in response2Arr:
 
@@ -265,6 +204,7 @@ async def getapprovalinfo(getappdata:Getappdata):
                                 # 当前审批流状态等于审批中 进入 遍历所有审批人 当前审批人等于 审批中
                                 if sub_node.get('sp_yj') == 1:
                                     users_id.append(sub_node['userid'])
+
                 # 审批中
                 elif sp_status == 2 and getappdata.sp_status == "2":
                     # 遍历所有审批流
@@ -283,18 +223,20 @@ async def getapprovalinfo(getappdata:Getappdata):
 
                 # 判断 userid 与 销售权限
                 if USERNAME in users_id:
-                    if sales_type == "采购销售" and ACCOUNT_PERMISSION[0]:
+                    if sales_type == "采购销售" and json.loads(ACCOUNT_PERMISSION)[0]:
                         response3Arr.append(item)
-                    elif sales_type == "囤货销售" and ACCOUNT_PERMISSION[1]:
+
+                    elif sales_type == "囤货销售" and json.loads(ACCOUNT_PERMISSION)[1]:
                         response3Arr.append(item)
-                    elif sales_type not in ["采购销售", "囤货销售"] and ACCOUNT_PERMISSION[3]:
+
+                    elif sales_type not in ["采购销售", "囤货销售"] and json.loads(ACCOUNT_PERMISSION)[2]:
                         response3Arr.append(item)
 
         """========================================================================================================================="""
         """========================================================================================================================="""
         """========================================================================================================================="""
 
-        # 对应映射表修改数据审批人姓名
+        # 对应 映射表 修改 数据 审批人姓名
         for item in response3Arr:
             item['info']['applyer']['userid'] =  userid_to_name[1].get(item['info']['applyer']['userid'],"")
 
@@ -526,24 +468,24 @@ async def add_user(data: UserCreate):
 
     account_permission = [False] * 3
     column_permission = {
-        "编号": True,
+        "订单编号": True,
         "销售类型": True,
-        "商品名称": False,
-        "上架原商品是否还在": True,
-        "商品来源": True,
-        "商品编码及商家名称": True,
-        "商家销售价格": True,
-        "到手港币金额": True,
-        "销售日期": True,
-        "销售截至日期": True,
-        "商品瑕疵": True,
-        "配件": True,
-        "上架商品图片": True,
-        "销售订单截图": True,
-        "运输面单截图": True,
-        "申请人": True,
-        "审批类型": True,
-        "审批状态": True
+        "商品名称": True,
+        "上架原商品是否还在": False,
+        "商品来源": False,
+        "商品编码及商家名称": False,
+        "商家销售价格": False,
+        "到手港币金额": False,
+        "销售日期": False,
+        "销售截至日期": False,
+        "商品瑕疵": False,
+        "配件": False,
+        "上架商品图片": False,
+        "销售订单截图": False,
+        "运输面单截图": False,
+        "申请人": False,
+        "审批类型": False,
+        "审批状态": False
     }
 
     con = get_db_connection()
@@ -830,3 +772,7 @@ async def approval_check_loop():
 async def startup_event():
     app.state.access_token = await get_weChat_access_token()
     asyncio.create_task(approval_check_loop())
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8080, reload=False)
