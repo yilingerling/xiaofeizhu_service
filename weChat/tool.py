@@ -1,10 +1,9 @@
+import json
+import os
+import requests
 from datetime import datetime
 
-import requests
-
-"""
-    获取企业微信令牌(access_token)
-"""
+""" 获取企业微信令牌(access_token) """
 async def get_weChat_access_token():
 
     # 企业ID和应用密钥
@@ -27,10 +26,7 @@ async def get_weChat_access_token():
 
         return "获取失败：", result
 
-
-"""
-    发送预警消息
-"""
+""" 发送预警消息 """
 async def send_approval_alert(touser,access_token,content):
 
     url = f'https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token={access_token}'
@@ -55,17 +51,13 @@ async def send_approval_alert(touser,access_token,content):
     if response['errmsg'] == "ok":
         print(f"发送消息至 {touser} 成功 日期：{datetime.now()}")
 
-"""
-    把 userid 转换成真实姓名
-"""
+""" 把 userid 转换成真实姓名 """
 async def get_name(access_token, username):
     url = f'https://qyapi.weixin.qq.com/cgi-bin/user/get?access_token={access_token}&userid={username}'
     response = requests.get(url).json()
     return response["name"]
 
-"""
-    把 userid 和 真实姓名做成映射
-"""
+""" 把 userid 和 真实姓名做成映射 """
 async def get_userid_to_name(access_token):
     userid_to_name = {}
     name_to_userid = {}
@@ -80,3 +72,46 @@ async def get_userid_to_name(access_token):
             name_to_userid[user['name']] = user['userid']
 
     return [name_to_userid, userid_to_name]
+
+""" 删除所有下载的图片 """
+def clear_static_folder(desktop_path):
+    for filename in os.listdir(desktop_path):
+        file_path = os.path.join(desktop_path, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)  # 删除文件或符号链接
+            elif os.path.isdir(file_path):
+                # 如果静态文件夹里还有子目录，递归删除
+                import shutil
+                shutil.rmtree(file_path)
+            # print(f"已删除: {file_path}")
+        except Exception as e:
+            print(f"删除失败 {file_path}，原因: {e}")
+
+
+""" 查询订单号是否存在 """
+def order_exists(cur, orderID):
+    cur.execute("SELECT FIRST 1 1 FROM XFZTABLEDATA WHERE orderID = ?", (str(orderID),))
+    return cur.fetchone() is not None
+
+# 插入数据
+def insert_json_to_firebird(cur, con,order_id, obj):
+    try:
+        # 检查是否已存在
+        cur.execute("SELECT 1 FROM XFZTABLEDATA WHERE ORDERID = ?", (order_id,))
+        if cur.fetchone():
+            print(f"⏩ 跳过已存在的 ORDERID：{order_id}")
+        else:
+
+            blob_json = json.dumps(obj)
+
+            cur.execute(
+                "INSERT INTO XFZTABLEDATA (ORDERID, OBJ_INFO) VALUES (?, ?)",
+                (order_id, blob_json)
+            )
+            con.commit()
+            print(f"✅ 插入新记录：{order_id}")
+
+    except Exception as e:
+        print(f"❌ 发生错误：{e}")
+
