@@ -19,7 +19,7 @@ from datetime import datetime, date, time as dt_time, timedelta  # 避免冲突
 
 """ 创建 fastapi 实例 """
 from weChat.tool import get_weChat_access_token, send_approval_alert, get_name, get_userid_to_name, clear_static_folder, \
-    order_exists, insert_json_to_firebird
+    order_exists, insert_json_to_firebird, update_json_to_firebird, decode_unicode
 
 app = FastAPI()
 
@@ -39,6 +39,7 @@ app.mount("/static", StaticFiles(directory=desktop_path), name="static")
 
 db_file = r"C:\Firebird_DB\my_db.fdb"  # 纯文件路径
 db_path = f"localhost:{db_file}"       # DSN
+# pyinstaller -F main.py --name fastapi_app
 
 # if not os.path.exists(db_file):
 #     fdb.create_database(
@@ -54,17 +55,11 @@ def get_db_connection():
     con = fdb.connect(
         dsn=db_path,
         user='SYSDBA',
-        password='123456'
-
+        password='xiaofeizhu'
     )
 
     return con
 
-""" 项目启动时自动调用 存进本地缓存 """
-@app.on_event("startup")
-async def startup_event():
-    token = await get_weChat_access_token()
-    app.state.access_token = token
 
 """ 根路径 """
 @app.get("/")
@@ -72,28 +67,7 @@ async def root():
     return "RkQ6AjqTeAApB2BK"
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-"""""""""""""""
-普通用户 获取数据
-"""""""""""""""
+""""""""""""""" 普通用户 获取数据 """""""""""""""
 class Getappdata(BaseModel):
     current_page: int
     starttime: int
@@ -117,13 +91,15 @@ async def get_approval_info(getappdata:Getappdata):
         # 存储编号
         approvals = []
         next_cursor = ""
+        seen_cursors = set()
+        has_retried = False
 
         while True:
             data = {
                 "starttime": int(getappdata.starttime),
-                "endtime":  int(getappdata.endtime),
+                "endtime": int(getappdata.endtime),
                 "new_cursor": next_cursor,
-                "size": 9999,  # 最大 100
+                "size": 100,  # 如果接口最大100，请别用9999
                 "filters": [
                     {
                         "key": "template_id",
@@ -136,13 +112,35 @@ async def get_approval_info(getappdata:Getappdata):
                 ]
             }
 
-            response = requests.post(url, json=data).json()
+            try:
+                response = requests.post(url, json=data, timeout=10).json()
+            except Exception as e:
+                print("请求错误:", e)
+                break
 
+            print("getapprovalinfo 状态码：", response.get('errcode'), "消息：", response.get('errmsg'))
+
+
+            # TOKEN过期特判
+            if response.get("errcode") == 40014 and not has_retried:
+                print("TOKEN 过期，正在重新获取一次")
+                app.state.access_token = await get_weChat_access_token()
+                has_retried = True
+                continue
+            elif response.get("errcode") != 0:
+                print("API 返回错误，停止循环")
+                break
+
+            # 拿到列表
             approvals.extend(response.get("sp_no_list", []))
 
+            # 处理分页
             next_cursor = response.get("new_next_cursor", "")
-            if not next_cursor:
+            if not next_cursor or next_cursor in seen_cursors:
                 break
+            seen_cursors.add(next_cursor)
+
+            await asyncio.sleep(0.2)
 
         """========================================================================================================================="""
         """========================================================================================================================="""
@@ -158,10 +156,13 @@ async def get_approval_info(getappdata:Getappdata):
         approvals.reverse()
 
         for item in approvals[start:end]:
+
             url2 = f'https://qyapi.weixin.qq.com/cgi-bin/oa/getapprovaldetail?access_token={app.state.access_token}'
             data2 = {"sp_no": item}
             response2 = requests.post(url2, json=data2)
-            time.sleep(0.3)
+
+            time.sleep(0.2)
+
             response2Arr.append(response2.json())
 
 
@@ -211,11 +212,14 @@ async def get_approval_info(getappdata:Getappdata):
 
         user_role = row[1]
 
+
+
         if user_role == "超级管理员":
 
             # 必须采购审批单 并且 审批中才有
             if getappdata.template_id == "3WLtybSyYX6kpA5X1Ygx48DC7jz4QE4g7v1S2QmE" and getappdata.sp_status == "1":
                 for item in response2Arr:
+                    print(item['info']['sp_no'], 1)
                     users_id = []  # 每个 item 独立存储审批人
                     user_str = ""
 
@@ -286,6 +290,9 @@ async def get_approval_info(getappdata:Getappdata):
             response3Arr = response2Arr
         elif user_role == "发货员" and getappdata.template_id == "3WLtybSyYX6kpA5X1Ygx48DC7jz4QE4g7v1S2QmE" and getappdata.sp_status == "1":
             for item in response2Arr:
+
+                print(item['info']['sp_no'], 2)
+
                 users_id = []  # 每个 item 独立存储审批人
                 user_str = ""
 
@@ -322,7 +329,6 @@ async def get_approval_info(getappdata:Getappdata):
                 item["user_str"] = user_str  # 添加字段
 
             response3Arr = response2Arr
-
         else:
 
             for item in response2Arr:
@@ -437,22 +443,17 @@ async def get_approval_info(getappdata:Getappdata):
         }
 
 
-
-
-
-
-
-
-
-
-"""""""""""""""""""""""""""""""""吴帆 张建辉 朱紫嫣 吴涛 获取 表格数据 """""""""""""""""""""""""""""""""
+""""""""""""""""""""""""""""""""" 吴帆 张建辉 朱紫嫣 吴涛 获取 表格数据 （表格数据）"""""""""""""""""""""""""""""""""
 class TableData(BaseModel):
     user_name:str
     user_id: str
     token:str
+    pageSize:int #每页显示条数
+    currentPage:int #当前页数
 @app.post("/getTableData")
 async def get_table_data(tableData:TableData):
-
+    page_size= tableData.pageSize
+    page= tableData.currentPage
     user_id = tableData.user_id
     token = tableData.token
     user_name = tableData.user_name
@@ -466,26 +467,33 @@ async def get_table_data(tableData:TableData):
     else:
 
         """========================================================================================================================="""
-        """查询7天内数据"""
+        """查询 15 天内数据"""
         """========================================================================================================================="""
+
         url = f'https://qyapi.weixin.qq.com/cgi-bin/oa/getapprovalinfo?access_token={app.state.access_token}'
+
         # 存储编号
         approvals = []
         next_cursor = ""
 
-        today_start = datetime.combine(date.today(), dt_time.min)
-        seven_days_ago = today_start - timedelta(days=15)
-        today_end = datetime.combine(date.today(), dt_time.max)
+        # 当前时间戳（单位：秒）
+        now_timestamp = int(time.time())
+        # 15天前的时间戳
+        fifteen_days_ago = now_timestamp - 20 * 24 * 60 * 60
 
+        seen_cursors = set()
+
+        # 查两遍 一个查询已通过 一个已驳回
         for i in range(2):
 
-            if i==1:
+            if i == 1:
+
                 while True:
                     data = {
-                        "starttime":  int(seven_days_ago.timestamp()),
-                        "endtime": int(today_end.timestamp()),
+                        "starttime": fifteen_days_ago,
+                        "endtime": now_timestamp,
                         "new_cursor": next_cursor,
-                        "size": 9999,  # 最大 100
+                        "size": 100,
                         "filters": [
                             {
                                 "key": "template_id",
@@ -499,17 +507,29 @@ async def get_table_data(tableData:TableData):
                     }
                     response = requests.post(url, json=data).json()
 
-                    approvals.extend(response.get("sp_no_list", []))
-                    next_cursor = response.get("new_next_cursor", "")
-                    if not next_cursor:
+                    print("get_table_data i == 1 状态码：", response['errcode'], "消息：", response['errmsg'])
+
+                    if response['errcode'] != 0:
+                        print("API 错误，终止循环")
                         break
+
+                    approvals.extend(response.get("sp_no_list", []))
+
+                    next_cursor = response.get('new_next_cursor', "")
+                    if not next_cursor or next_cursor in seen_cursors:
+                        break
+                    seen_cursors.add(next_cursor)
+
+                    time.sleep(0.2)
+
             else:
+
                 while True:
                     data = {
-                        "starttime": int(seven_days_ago.timestamp()),
-                        "endtime": int(today_end.timestamp()),
+                        "starttime": fifteen_days_ago,
+                        "endtime": now_timestamp,
                         "new_cursor": next_cursor,
-                        "size": 9999,  # 最大 100
+                        "size": 100,  # 如果接口最大只支持100，请不要用9999
                         "filters": [
                             {
                                 "key": "template_id",
@@ -521,12 +541,27 @@ async def get_table_data(tableData:TableData):
                             }
                         ]
                     }
-                    response = requests.post(url, json=data).json()
+
+                    try:
+                        response = requests.post(url, json=data, timeout=10).json()
+                    except Exception as e:
+                        print("请求出错：", e)
+                        break
+
+                    print("get_table_data i == 2 状态码：", response.get('errcode'), "消息：", response.get('errmsg'))
+
+                    if response.get('errcode') != 0:
+                        print("API 返回错误，终止循环")
+                        break
+
                     approvals.extend(response.get("sp_no_list", []))
 
-                    next_cursor = response.get("new_next_cursor", "")
-                    if not next_cursor:
+                    next_cursor = response.get('new_next_cursor', "")
+                    if not next_cursor or next_cursor in seen_cursors:
                         break
+                    seen_cursors.add(next_cursor)
+
+                    time.sleep(0.2)
 
 
         """========================================================================================================================="""
@@ -552,25 +587,24 @@ async def get_table_data(tableData:TableData):
         else:
             old_order_list = []
 
+
         # 遍历循环所有编号 对齐进行处理
         for approval in approvals:
 
+            # 如果当前编号不在表格数据中
             if not order_exists(cur, approval) and approval not in old_order_list:
-
 
                 url2 = f'https://qyapi.weixin.qq.com/cgi-bin/oa/getapprovaldetail?access_token={app.state.access_token}'
                 item = requests.post(url2, json={"sp_no": approval}).json()
 
-                time.sleep(0.3)
-
-                if item.get("errmsg") != "ok":
-                    print(f"{approval} 已通过数据 查询失败")
+                time.sleep(0.2)
 
                 # 存储数据筛选出来的通过人ID
                 successFlag_user_id = ""
 
                 node_list = item['info']['process_list']['node_list']
 
+                # 寻找符合条件的数据
                 for node in node_list:
                     if node.get('sp_status') == 2 and node.get('node_type') == 1:
                         for sub_node in node.get('sub_node_list', []):
@@ -587,13 +621,18 @@ async def get_table_data(tableData:TableData):
                 sp_status = str(item['info']['sp_status'])
                 # 订单标号
                 sp_no = item['info']['sp_no']
+                # 商品名称
+                content_name  = ""
 
                 # 获取销售截止日期
                 for content in item['info']['apply_data']['contents']:
 
-                    if content['title'][0]['text'] == "销售截至日期":
+                    current_name = content['title'][0]['text']
 
+                    if current_name == "销售截至日期":
                         xs_jz_date = content['value']['date']['s_timestamp']
+                    elif current_name == "商品名称":
+                        content_name = content['value']['text']
 
                 # 当前数据属于谁
                 data_user_name = userid_to_name[1].get(successFlag_user_id, "")
@@ -603,9 +642,15 @@ async def get_table_data(tableData:TableData):
                     # 审批人
                     "applyer": data_user_name,
 
+                    # 商品名称
+                    "content_name": content_name,
+
                     "sp_name": sp_name,
+
                     "update_time": "无",
+
                     "sp_no": sp_no,
+
                     # 超链接
                     "link_url": "",
                     # 销售人名称
@@ -662,7 +707,6 @@ async def get_table_data(tableData:TableData):
 
             cur.execute('SELECT USERNAME, ROLE FROM XFZUSERS WHERE ID = ?', (user_id,))
             row = cur.fetchone()
-  
             if not row:
                 return {
                     "code": 404,
@@ -673,14 +717,247 @@ async def get_table_data(tableData:TableData):
 
             db_user_name = row[0]
             user_role = row[1]
-
             # 2. 根据角色返回不同数据
             if db_user_name and user_role:
+
+
+                #============================================================================================================================分页2025.09.07
+                # start = (page - 1) * page_size + 1
+                # end = page * page_size
+                # data_sql = ""
+                # count_sql = ""
+                # # 根据角色区分 SQL
+                # if user_role in ["超级管理员", "管理员", "发货员"]:
+                #     data_sql = f"SELECT OBJ_INFO FROM XFZTABLEDATA ROWS {start} TO {end};"
+                #     count_sql = "SELECT COUNT(*) FROM XFZTABLEDATA;"
+                # elif user_role == "采购员":
+                #     print()
+                #     data_sql = f"SELECT OBJ_INFO FROM XFZTABLEDATA  WHERE OBJ_INFO SIMILAR TO '%\"applyer\": \"{db_user_name}\"%' OR OBJ_INFO SIMILAR TO '%\"applyer\": \"{decode_unicode(db_user_name)}\"%' ROWS {start} TO {end};"
+                #     count_sql = f"SELECT COUNT(*) FROM XFZTABLEDATA WHERE OBJ_INFO SIMILAR TO '%\"applyer\": \"{db_user_name}\"%'"
+                #     print(data_sql)
+                    # data_sql = f"""
+                    #                    SELECT OBJ_INFO
+                    #                    FROM XFZTABLEDATA
+                    #                    WHERE OBJ_INFO SIMILAR TO '%"applyer": "{db_user_name}"%'
+                    #                       OR OBJ_INFO SIMILAR TO '%"applyer": "{decode_unicode(db_user_name)}"%'
+                    #                    ROWS {start} TO {end};
+                    #                    """
+                    # count_sql = f"""
+                    #                    SELECT COUNT(*)
+                    #                    FROM XFZTABLEDATA
+                    #                    WHERE OBJ_INFO SIMILAR TO '%"applyer": "{db_user_name}"%'
+                    #                       OR OBJ_INFO SIMILAR TO '%"applyer": "{decode_unicode(db_user_name)}"%'
+                    #                    """
+                # ============================================================================================================================
+                # 执行总条数查询
+                # cur.execute(count_sql)
+                # total = cur.fetchone()[0]
+                # 执行分页查询
 
                 cur.execute("SELECT OBJ_INFO FROM XFZTABLEDATA")
                 rows = cur.fetchall()
 
-                if user_role == "超级管理员" or user_role == "发货员":
+                # 处理没有商品名称的
+                for row in rows:
+                    data = json.loads(row[0])
+
+                    if not data.get("content_name") and data.get("sp_no")[0:2] != "WF":
+                        print(f"当前更新编号：{data.get("sp_no")} {data}")
+                        try:
+                            url2 = f'https://qyapi.weixin.qq.com/cgi-bin/oa/getapprovaldetail?access_token={app.state.access_token}'
+                            response = requests.post(url2, json={"sp_no": str(data.get("sp_no"))}, timeout=10)
+                            item = response.json()
+
+                            time.sleep(0.2)
+
+                            content_name = ""
+                            contents = item.get('info', {}).get('apply_data', {}).get('contents', [])
+                            for content in contents:
+                                title = content.get('title', [{}])[0].get('text', '')
+                                if title == "商品名称":
+                                    content_name = content.get('value', {}).get('text', '')
+                                    break
+
+                            data["content_name"] = content_name
+                            update_json_to_firebird(cur, con, str(data.get("sp_no")), data)
+
+                        except Exception as e:
+                            print(f"[错误] 处理审批单失败 sp_no={str(data.get("sp_no"))}：{e}")
+
+                # 测试 勿删
+                # for row in rows:
+                #     if json.loads(row[0]).get("sp_no") == "202507050009":
+                #         print(json.loads(row[0]))
+
+                if user_role == "超级管理员" or user_role == "管理员" or user_role == "发货员":
+
+                    all_user_data = [json.loads(row[0]) for row in rows]
+
+                elif user_role == "采购员":
+                    all_user_data = [
+                        json.loads(row[0])
+                        for row in rows
+                        if json.loads(row[0]).get('applyer') == db_user_name
+                    ]
+
+                else:
+                    return {
+                        "code": 403,
+                        "message": f"角色【{user_role}】无权限访问",
+                        "data": [],
+                        "total": 0
+                    }
+
+                sorted_data = sorted(all_user_data, key=lambda x: (x["sp_no"][:8], int(x["sp_no"][8:])), reverse=True)
+
+                user_data = sorted_data[(page - 1) * page_size: page * page_size]
+
+                return {
+                    "code": 200,
+                    "message": "查询成功",
+                    "data": user_data,
+                    "total": len(all_user_data)
+                }
+
+            else:
+                return {
+                    "code": 403,
+                    "message": "当前角色无权限",
+                    "data": [],
+                    "total": 0
+                }
+
+        except Exception as e:
+            print(f"❌ 发生错误：{e}")
+            return {
+                "code": 500,
+                "message": f"服务错误：{e}",
+                "data": [],
+                "total": 0
+            }
+        finally:
+            if 'cur' in locals():
+                cur.close()
+
+
+class Query_getTableData(BaseModel):
+    sp_no_arr: str
+    starttime:int
+    endtime: int
+    sp_name: str
+    sj_name:str
+    dxl_number: str
+    kd_no: str
+    user_id: str
+    token: str
+@app.post("/Query_getTableData")
+async def Query_getTableData(query_getTableData: Query_getTableData):
+    user_id = query_getTableData.user_id
+    token = query_getTableData.token
+    sp_no_arr = query_getTableData.sp_no_arr
+    form_starttime=query_getTableData.starttime
+    form_endtime = query_getTableData.endtime
+    dxl = query_getTableData.dxl_number
+    kd = query_getTableData.kd_no
+    sj = query_getTableData.sj_name
+    sp=query_getTableData.sp_name
+    if await get_token(user_id, token):
+        return {
+            "code": 400,
+            "message": "身份验证已过期",
+            "data": []
+        }
+    else:
+        # 开始数据库连接
+        con = get_db_connection()
+        cur = con.cursor()
+        # 检查用户名是否已存
+        time.sleep(1)
+        try:
+            # 初始化变量
+            user_role = ""
+            user_data = []
+            db_user_name = ""
+            cur.execute('SELECT USERNAME, ROLE FROM XFZUSERS WHERE ID = ?', (user_id,))
+            row = cur.fetchone()
+
+            if not row:
+                return {
+                    "code": 404,
+                    "message": "该用户不存在",
+                    "data": [],
+                    "total": 0
+                }
+
+            db_user_name = row[0]
+            user_role = row[1]
+            # 2. 根据角色返回不同数据
+            if db_user_name and user_role:
+                sql =""
+                if sp_no_arr == "":
+                    sql=f"SELECT OBJ_INFO FROM XFZTABLEDATA"
+                else:
+                    sp_no_arr = sp_no_arr.replace('，', ',')
+                    sp_no_arr = sp_no_arr.rstrip(',')
+                    items = [item.strip() for item in sp_no_arr.split(',') if item.strip()]
+                    # 3. 每个元素加上引号
+                    result = ",".join(f"'{item}'" for item in items)
+                    sql=f"SELECT OBJ_INFO FROM XFZTABLEDATA where ORDERID in({result})"
+                cur.execute(sql)
+                rows = cur.fetchall()
+
+                # 最后统一翻转数组
+                rows.reverse()
+                new_row=[]
+                if form_starttime != 0:
+                    for row in rows:
+                        if json.loads(row[0]).get("sx_jz_date")!="":
+                            if "-" in json.loads(row[0]).get("sx_jz_date"):
+                                dt = datetime.strptime(json.loads(row[0]).get("sx_jz_date"), "%Y-%m-%d")
+                                timestamp = int(dt.timestamp())
+                                if form_starttime <= timestamp <= form_endtime+86399:
+                                    new_row.append(row)
+                            elif json.loads(row[0]).get("sx_jz_date").isdigit():
+                                if form_starttime <= int(json.loads(row[0]).get("sx_jz_date")) <= form_endtime+86399:
+                                    new_row.append(row)
+                    rows = new_row
+                new_row=[]
+                if sj !="":
+                    for row in rows:
+                        if json.loads(row[0]).get("merchant_name") !="":
+                            if sj in json.loads(row[0]).get("merchant_name"):
+                                new_row.append(row)
+                    rows = new_row
+                new_row=[]
+                if sp !="":
+                    for row in rows:
+                        if json.loads(row[0]).get("content_name"):
+                            if sp in json.loads(row[0]).get("content_name"):
+                                new_row.append(row)
+                    rows = new_row
+                new_row=[]
+                if dxl !="":
+                    dxl = dxl.replace('，', ',')
+                    dxl = dxl.rstrip(',')
+                    items = [item.strip() for item in dxl.split(',') if item.strip()]
+                    for row in rows:
+                        if json.loads(row[0]).get("dxl_number") !="":
+                            for dxls in items:
+                                if dxls in json.loads(row[0]).get("dxl_number"):
+                                    new_row.append(row)
+                    rows = new_row
+                new_row = []
+                if kd !="":
+                    kd = kd.replace('，', ',')
+                    kd = kd.rstrip(',')
+                    items = [item.strip() for item in kd.split(',') if item.strip()]
+                    for row in rows:
+                        if json.loads(row[0]).get("tracking_number") !="":
+                            for kds in items:
+                                if kds in json.loads(row[0]).get("tracking_number"):
+                                    new_row.append(row)
+                    rows = new_row
+                if user_role == "超级管理员" or user_role == "管理员" or user_role == "发货员":
                     # 只要 OBJ_INFO 这一列
                     user_data = [json.loads(row[0]) for row in rows]
 
@@ -690,7 +967,6 @@ async def get_table_data(tableData:TableData):
                         for row in rows
                         if json.loads(row[0]).get('applyer') == db_user_name
                     ]
-
 
                 else:
                     return {
@@ -726,14 +1002,6 @@ async def get_table_data(tableData:TableData):
         finally:
             if 'cur' in locals():
                 cur.close()
-
-
-
-
-
-
-
-
 
 
 """ 删除表格数据 """
@@ -786,6 +1054,7 @@ async def DELXFZTABLEDATA(data: DelTable):
         "data": True
     }
 
+
 """ 表格 添加一行数据 """
 class AddTableData(BaseModel):
     sp_no:str
@@ -806,6 +1075,8 @@ async def Add_table_data(data: AddTableData):
         item_data = {
             "sp_name": "",
             "update_time": "无",
+            # 商品名称
+            "content_name": "",
             "sp_no": data.sp_no,
             # 超链接
             "link_url": "",
@@ -860,6 +1131,7 @@ async def Add_table_data(data: AddTableData):
             "data": True
         }
 
+
 """ 修改用户表格数据得内容 """
 class Row(BaseModel):
     userid:str
@@ -892,46 +1164,116 @@ async def update_table_data(row: Row):
     con = get_db_connection()
     cur = con.cursor()
 
-    item_data = {
-        "sp_name": row.sp_name,
-        "update_time": row.update_time,
-        "sp_no": row.sp_no,
-        "link_url": row.link_url,
-        "xs_name": row.xs_name,
-        "applyer": row.applyer,
-        "sp_status": row.sp_status,
-        "reject_reason": row.reject_reason,
-        "dxl_number": row.dxl_number,
-        "merchant_name": row.merchant_name,
-        "purchase_price": row.purchase_price,
-        "payment_date": row.payment_date,
-        "payment_method": row.payment_method,
-        "is_direct_delivery": row.is_direct_delivery,
-        "tracking_number": row.tracking_number,
-        "needs_maintenance": row.needs_maintenance,
-        "maintenance_person": row.maintenance_person,
-        "shipping_fee": row.shipping_fee,
-        "maintenance_content": row.maintenance_content,
-        "maintenance_price": row.maintenance_price,
-        "is_settled": row.is_settled,
-        "sx_jz_date": row.sx_jz_date,
-        "settlement_date": row.settlement_date,
-        "is_shipped": row.is_shipped
-    }
+    cur.execute("SELECT 1 FROM xfzusers WHERE USERNAME = ?", (row.applyer,))
+    result = cur.fetchone()
 
-    # 直接更新
-    cur.execute(
-        "UPDATE XFZTABLEDATA SET OBJ_INFO = ? WHERE orderID = ?",
-        (json.dumps(item_data), row.sp_no)
-    )
+    if not result:
+        return {
+            "code": 400,
+            "message": "保存失败，审批人不存在！"
+        }
+    else:
+        # 先查询数据库里原来的 OBJ_INFO
+        cur.execute("SELECT OBJ_INFO FROM XFZTABLEDATA WHERE orderID = ?", (row.sp_no,))
+        result = cur.fetchone()
 
-    con.commit()
-    con.close()
+        if result:
+            old_data = json.loads(result[0])
+        else:
+            old_data = {}
 
-    return {
-        "code": 200,
-        "message": "保存成功"
-    }
+
+        # 构造新的数据
+        item_data = {
+            "sp_name": row.sp_name,
+            "update_time": row.update_time,
+            "sp_no": row.sp_no,
+            "link_url": row.link_url,
+            "xs_name": row.xs_name,
+            "applyer": row.applyer,
+            "sp_status": row.sp_status,
+            "reject_reason": row.reject_reason,
+            "dxl_number": row.dxl_number,
+            "merchant_name": row.merchant_name,
+            "purchase_price": row.purchase_price,
+            "payment_date": row.payment_date,
+            "payment_method": row.payment_method,
+            "is_direct_delivery": row.is_direct_delivery,
+            "tracking_number": row.tracking_number,
+            "needs_maintenance": row.needs_maintenance,
+            "maintenance_person": row.maintenance_person,
+            "shipping_fee": row.shipping_fee,
+            "maintenance_content": row.maintenance_content,
+            "maintenance_price": row.maintenance_price,
+            "is_settled": row.is_settled,
+            "sx_jz_date": row.sx_jz_date,
+            "settlement_date": row.settlement_date,
+            "is_shipped": row.is_shipped
+        }
+
+        # 如果 sp_no 不是以 WF 开头，就用旧值覆盖前端传来的值（相当于忽略前端传来的值）
+        if not row.sp_no.startswith("WF"):
+
+            if row.sp_name == "囤货销售":
+                for key in ["sp_name", "xs_name"]:
+                    item_data[key] = old_data.get(key)
+            else:
+                for key in ["sp_name", "xs_name","applyer"]:
+                    item_data[key] = old_data.get(key)
+
+        # 更新回数据库
+        cur.execute(
+            "UPDATE XFZTABLEDATA SET OBJ_INFO = ? WHERE orderID = ?",
+            (json.dumps(item_data, ensure_ascii=False), row.sp_no)
+        )
+
+        con.commit()
+        con.close()
+
+        return {
+            "code": 200,
+            "message": "保存成功"
+        }
+
+
+""" 一键发货 """
+class bulkshipmentData(BaseModel):
+    items: List[str]
+    user_id: str
+    token: str
+@app.post("/bulkshipment")
+async def bulkshipment(data: bulkshipmentData):
+    con = get_db_connection()
+    cur = con.cursor()
+    if await get_token(data.user_id, data.token):
+        return {
+            "code": 400,
+            "message": "身份验证已过期",
+            "data": []
+        }
+    else:
+        for item in data.items:
+            cur.execute("SELECT OBJ_INFO FROM XFZTABLEDATA WHERE orderID = ?", (item,))
+            result = cur.fetchone()
+
+            data = json.loads(result[0])  # 先解析成字典
+            data["is_direct_delivery"] = "是"  # 修改字典的值
+            print(data)
+
+            cur.execute(
+                "UPDATE XFZTABLEDATA SET OBJ_INFO = ? WHERE orderID = ?",
+                (json.dumps(data, ensure_ascii=False), item)
+            )
+
+        con.commit()
+        con.close()
+
+            # print(json.loads(result[0]))
+        return {
+            "code": 200,
+            "message": "修改成功"
+        }
+
 
 """ 根据图片ID数组获取图片 """
 @app.get("/getPicture/")
@@ -944,6 +1286,9 @@ async def getPicture(media_ids: List[str] = Query(alias="media_ids[]")):
         url = f"https://qyapi.weixin.qq.com/cgi-bin/media/get?access_token={app.state.access_token}&media_id={item}"
         # 发起 GET 请求
         response = requests.get(url)
+
+        time.sleep(0.2)
+
         # 检查响应状态
         if response.status_code == 200:
             # 将图片保存到本地
@@ -955,6 +1300,7 @@ async def getPicture(media_ids: List[str] = Query(alias="media_ids[]")):
             print("响应内容：", response.text)
         responseImagesArr.append(f"https://xiaofeizhu.chat/api/static/{item}.jpg")
     return responseImagesArr
+
 
 """ 查询 Token 信息（通过 user_id）"""
 async def get_token(user_id: str, token: str):
@@ -982,6 +1328,7 @@ async def get_token(user_id: str, token: str):
     else:
         con.close()
         return False
+
 
 """ 管理员登录（针对 xfzadmin 表）"""
 class LoginData(BaseModel):
@@ -1046,6 +1393,7 @@ async def admin_login(data: LoginData):
         }
     }
 
+
 """ 普通用户登录 """
 @app.post("/user/login")
 async def user_login(data: LoginData):
@@ -1109,6 +1457,7 @@ async def user_login(data: LoginData):
             "token": token_str
         }
     }
+
 
 """ 管理员 添加用户 """
 class UserCreate(BaseModel):
@@ -1180,6 +1529,7 @@ async def add_user(data: UserCreate):
         }
     }
 
+
 """ 管理员 添加角色 """
 class RoleCreate(BaseModel):
     role_name:str
@@ -1249,6 +1599,7 @@ async def add_role(data: RoleCreate):
         }
     }
 
+
 """ 管理员 查询全部用户 """
 class UserGet(BaseModel):
     user_id: str
@@ -1288,6 +1639,7 @@ async def get_user(data: UserGet):
             "data": users
         }
 
+
 """ 管理员 查询全部角色 """
 class UserGet(BaseModel):
     user_id: str
@@ -1323,6 +1675,7 @@ async def get_role(data: UserGet):
             "message": "查询成功",
             "data": roles
         }
+
 
 """ 用户根据 ID 查询自己的表格的 列 权限信息 """
 @app.post("/get_role_user_id")
@@ -1385,6 +1738,7 @@ async def get_role_user_id(data: UserGet):
         }
     }
 
+
 """ 删除用户 """
 class Userdel(BaseModel):
     user_id: str
@@ -1413,6 +1767,7 @@ async def del_user(data: Userdel):
             "message": "删除成功",
             "data": True
         }
+
 
 """ 管理员 修改用户信息加权限 """
 class GetPERMISSION(BaseModel):
@@ -1504,7 +1859,6 @@ class ApprovalData(BaseModel):
     sp_no: str
     user_id: str
     token: str
-
 @app.post("/ApprovalData")
 async def App_roval_Data(data:ApprovalData):
 
@@ -1538,16 +1892,20 @@ async def App_roval_Data(data:ApprovalData):
         }
 
 
-
-
 """ 消息推送 """
 async def approval_check():
-    print(f"[{datetime.now()}] 执行审批检查")
 
     # 更新token
     app.state.access_token = await get_weChat_access_token()
 
+    print(f"Token 已更新：",app.state.access_token)
+
+    time.sleep(0.2)
+
+    print(f"[{datetime.now()}] 执行审批检查")
+
     token = app.state.access_token
+
     now = int(time.time())
     one_month_ago = now - 30 * 86400
 
@@ -1575,6 +1933,9 @@ async def approval_check():
         }
 
         response = requests.post(url, json=data).json()
+
+        time.sleep(0.2)
+
         approvals.extend(response.get("sp_no_list", []))
         next_cursor = response.get("new_next_cursor", "")
         if not next_cursor:
@@ -1585,6 +1946,9 @@ async def approval_check():
         url2 = f'https://qyapi.weixin.qq.com/cgi-bin/oa/getapprovaldetail?access_token={token}'
         data2 = {"sp_no": item}
         response2 = requests.post(url2, json=data2)
+
+        time.sleep(0.2)
+
         response2Arr.append(response2.json())
 
     response2Arr.reverse()
@@ -1650,13 +2014,15 @@ async def approval_check():
                                 f"销售截止日期：{datetime.fromtimestamp(int(Date1)).strftime('%Y-%m-%d')}\n"
                                 f"状态：审批即将超时,请处理"
                             )
-
+                            # await send_approval_alert("01", token, content)
                             await send_approval_alert(sub_node_li['userid'], token, content)
 
-                            time.sleep(1)
+                            time.sleep(0.2)
+
 
 """ 消息推送 每到双数 整点 发送消息 """
 async def wait_until_next_2_hour_mark():
+
     now = datetime.now()
     # 计算当前时间对应的2小时整点，比如0,2,4...22点
     next_hour = (now.hour // 2 + 1) * 2
@@ -1670,13 +2036,15 @@ async def wait_until_next_2_hour_mark():
     print(f"等待 {wait_seconds} 秒，到下一个2小时整点: {next_run}")
     await asyncio.sleep(wait_seconds)
 
-# 测试 方法 时间 每分钟发一个
+
+# 测试 方法 时间 每分钟发一个（勿删）
 # async def wait_until_next_2_hour_mark():
 #     now = datetime.now()
 #     next_run = now.replace(second=0, microsecond=0) + timedelta(minutes=1)
 #     wait_seconds = (next_run - now).total_seconds()
 #     print(f"等待 {wait_seconds} 秒，到下一分钟整点: {next_run}")
 #     await asyncio.sleep(wait_seconds)
+
 
 """ 消息推送 定时循环 """
 async def approval_check_loop():
@@ -1687,7 +2055,10 @@ async def approval_check_loop():
 """ 消息推送 项目启动后再启动 """
 @app.on_event("startup")
 async def startup_event():
+
+    # 项目初启动 获取token
     app.state.access_token = await get_weChat_access_token()
+
     asyncio.create_task(approval_check_loop())
 
 

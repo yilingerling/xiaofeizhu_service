@@ -1,0 +1,311 @@
+{
+  "errcode": 0,
+  "errmsg": "ok",
+  "info": {
+    "sp_no": "202509190006",
+    "sp_name": "采购申请单",
+    "sp_status": 2,
+    "template_id": "3WLtybSyYX6kpA5X1Ygx48DC7jz4QE4g7v1S2QmE",
+    "apply_time": 1758265846,
+    "applyer": {
+      "userid": "ZhangGuangHui",
+      "partyid": "2"
+    },
+    "sp_record": [
+      {
+        "sp_status": 2,
+        "approverattr": 1,
+        "details": [
+          {
+            "approver": { "userid": "WuFan" },
+            "speech": "",
+            "sp_status": 1,
+            "sptime": 0,
+            "media_id": []
+          },
+          {
+            "approver": { "userid": "Gu." },
+            "speech": "已预约安排取件",
+            "sp_status": 2,
+            "sptime": 1758349970,
+            "media_id": []
+          },
+          {
+            "approver": { "userid": "z_1" },
+            "speech": "",
+            "sp_status": 1,
+            "sptime": 0,
+            "media_id": []
+          },
+          {
+            "approver": { "userid": "zy" },
+            "speech": "",
+            "sp_status": 1,
+            "sptime": 0,
+            "media_id": []
+          }
+        ]
+      }
+    ],
+    "notifyer": [
+      { "userid": "Gu." },
+      { "userid": "ZhangGuangHui" }
+    ],
+    "apply_data": {
+      "contents": [
+        {
+          "control": "Selector",
+          "id": "Selector-1743794706355",
+          "title": [{ "text": "销售类型", "lang": "zh_CN" }],
+          "value": {
+            "selector": {
+              "type": "single",
+              "options": [
+                {
+                  "key": "option-1743794706356",
+                  "value": [{ "text": "囤货销售", "lang": "zh_CN" }]
+                }
+              ]
+            }
+          },
+          "display": 1,
+          "require": 1
+        },
+        {
+          "control": "Text",
+          "id": "Text-1719568708259",
+          "title": [{ "text": "商品名称", "lang": "zh_CN" }],
+          "value": { "text": "迪奥红色漆皮戴妃" },
+          "display": 1,
+          "require": 1
+        },
+        {
+          "control": "Selector",
+          "id": "Selector-1743811164694",
+          "title": [{ "text": "上架原商品是否还在", "lang": "zh_CN" }],
+          "value": {
+            "selector": {
+              "type": "single",
+              "options": [
+                {
+                  "key": "option-1743811164694",
+                  "value": [{ "text": "是", "lang": "zh_CN" }]
+                }
+              ]
+            }
+          },
+          "display": 1,
+          "require": 1
+        },
+        {
+          "control": "Selector",
+          "id": "item-1494248811896",
+          "title": [
+            { "text": "商品来源", "lang": "zh_CN" },
+            { "text": "Type", "lang": "en" }
+          ],
+          "value": {
+            "selector": {
+              "type": "single",
+              "options": [
+                {
+                  "key": "option-1719392346952",
+                  "value": [{ "text": "段小狸", "lang": "zh_CN" }]
+                }
+              ]
+            }
+          },
+          "display": 1,
+          "require": 1
+        },
+        {
+          "control": "Text",
+          "id": "Text-1743812354332",
+          "title": [{ "text": "商品编码及商家名称", "lang": "zh_CN" }],
+          "value": { "text": "98080477" },
+          "display": 1,
+          "require": 0
+        },
+        {
+          "control": "Text",
+          "id": "Text-1747987155916",
+          "title": [{ "text": "商家销售价格", "lang": "zh_CN" }],
+          "value": { "text": "4680" },
+          "display": 1,
+          "require": 1
+        },
+        {
+          "control": "Money",
+          "id": "item-1494249104239",
+          "title": [
+            { "text": "到手港币金额", "lang": "zh_CN" },
+            { "text": "Amount", "lang": "en" }
+          ],
+          "value": { "new_money": "850" },
+          "display": 1,
+          "require": 1
+        },
+        {
+          "control": "Date",
+          "id": "item-1494249113679",
+          "title": [
+            { "text": "销售日期", "lang": "zh_CN" },
+            { "text": "Date", "lang": "en" }
+          ],
+          "value": {
+            "date": { "type": "day", "s_timestamp": "1758211200" }
+          },
+          "display": 1,
+          "require": 1
+        },
+        {
+          "control": "Date",
+          "id": "Date-1719391984543",
+          "title": [{ "text": "销售截至日期", "lang": "zh_CN" }],
+          "value": {
+            "date": { "type": "day", "s_timestamp": "1758816000" }
+          },
+          "display": 1,
+          "require": 1
+        },
+        {
+          "control": "Textarea",
+          "id": "item-1494249126248",
+          "title": [
+            { "text": "商品瑕疵", "lang": "zh_CN" },
+            { "text": "Remarks", "lang": "en" }
+          ],
+          "value": {
+            "text": "产品名称：Dior Lady Dior 包，经典优雅链条单肩包，材质：皮革，颜色：红色，尺寸（厘米）：21（高）*24（宽）*12.3（深），\n配件：肩带，描述：包袋有正常使用痕迹，外袋开口轻微磨损，金配件轻微磨损，内部正常使用，边缘轻微磨损，需油，包身保养，欢迎咨询我获取报价，祝您拥有美好的一天！:): 388"
+          },
+          "display": 1,
+          "require": 1
+        },
+        {
+          "control": "Text",
+          "id": "Text-1742886480991",
+          "title": [{ "text": "配件", "lang": "zh_CN" }],
+          "value": { "text": "肩带" },
+          "display": 1,
+          "require": 1
+        },
+        {
+          "control": "File",
+          "id": "File-1719392168797",
+          "title": [{ "text": "上架商品图片", "lang": "zh_CN" }],
+          "value": {
+            "files": [
+              { "file_id": "WWME_fCM8OgAAISvEdUeFfgz4T1winf0RcQ" },
+              { "file_id": "WWME_fCM8OgAA0i3xFmSU1HI_pUNvcIZjGQ" },
+              { "file_id": "WWME_fCM8OgAA89vkSLu5j5sFycg8QoqdMw" },
+              { "file_id": "WWME_fCM8OgAAsWDk8sKo9UG083gn7brNGw" },
+              { "file_id": "WWME_fCM8OgAAPb6URw31ynfKFg2n975lgg" },
+              { "file_id": "WWME_fCM8OgAAzBvtXLSCWROW1FawOFQBkg" },
+              { "file_id": "WWME_fCM8OgAAvhHXMYNAcn08tI2i_SHFGA" },
+              { "file_id": "WWME_fCM8OgAApwbFz7r8Ix0H91qELMXyqQ" },
+              { "file_id": "WWME_fCM8OgAAd4pFr8SlZXgTLwEg2P9s_A" },
+              { "file_id": "WWME_fCM8OgAAPfCWedlQXyqSSsrWtVbf2Q" },
+              { "file_id": "WWME_fCM8OgAAMxoaOwWNoWkMCaSw_u49xg" },
+              { "file_id": "WWME_fCM8OgAAQkD2qi0k0QHnEGVia7eoig" },
+              { "file_id": "WWME_fCM8OgAAC-FXF37xmuRxTqT6E_58fw" },
+              { "file_id": "WWME_fCM8OgAAhutwHEDfg6ilNeXhZLoNdA" }
+            ]
+          },
+          "display": 1,
+          "require": 1
+        },
+        {
+          "control": "File",
+          "id": "File-1719392234789",
+          "title": [{ "text": "销售订单截图", "lang": "zh_CN" }],
+          "value": {
+            "files": [
+              { "file_id": "WWME_fCM8OgAA5n3SMlvPRfj9_CXK_O6mZw" }
+            ]
+          },
+          "display": 1,
+          "require": 1
+        },
+        {
+          "control": "File",
+          "id": "File-1719464460176",
+          "title": [{ "text": "运输面单截图", "lang": "zh_CN" }],
+          "value": {
+            "files": [
+              { "file_id": "WWME_fCM8OgAA0S1xPaU0OamBQd_aukjQ1w" }
+            ]
+          },
+          "display": 1,
+          "require": 1
+        }
+      ]
+    },
+    "comments": [],
+    "process_list": {
+      "node_list": [
+        {
+          "node_type": 3,
+          "sp_status": 14,
+          "apv_rel": 3,
+          "sub_node_list": [
+            {
+              "userid": "WuFan",
+              "speech": "",
+              "sp_yj": 14,
+              "sptime": 1758266770,
+              "media_ids": []
+            }
+          ]
+        },
+        {
+          "node_type": 1,
+          "sp_status": 2,
+          "apv_rel": 2,
+          "sub_node_list": [
+            {
+              "userid": "WuFan",
+              "speech": "",
+              "sp_yj": 1,
+              "sptime": 0,
+              "media_ids": []
+            },
+            {
+              "userid": "Gu.",
+              "speech": "已预约安排取件",
+              "sp_yj": 2,
+              "sptime": 1758349970,
+              "media_ids": []
+            },
+            {
+              "userid": "z_1",
+              "speech": "",
+              "sp_yj": 1,
+              "sptime": 0,
+              "media_ids": []
+            },
+            {
+              "userid": "zy",
+              "speech": "",
+              "sp_yj": 1,
+              "sptime": 0,
+              "media_ids": []
+            }
+          ]
+        },
+        {
+          "node_type": 2,
+          "sub_node_list": [
+            { "userid": "Gu.", "media_ids": [] }
+          ]
+        },
+        {
+          "node_type": 2,
+          "sub_node_list": [
+            { "userid": "ZhangGuangHui", "media_ids": [] }
+          ]
+        }
+      ]
+    },
+    "batch_applyer": []
+  }
+}

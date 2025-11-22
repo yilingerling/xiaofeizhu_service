@@ -115,3 +115,29 @@ def insert_json_to_firebird(cur, con,order_id, obj):
     except Exception as e:
         print(f"❌ 发生错误：{e}")
 
+def update_json_to_firebird(cur, con, order_id, obj):
+    try:
+        # 先检查是否存在该 order_id
+        cur.execute("SELECT 1 FROM XFZTABLEDATA WHERE ORDERID = ?", (order_id,))
+        if cur.fetchone():
+            # 存在则更新
+            blob_json = json.dumps(obj, ensure_ascii=False)
+
+            cur.execute(
+                "UPDATE XFZTABLEDATA SET OBJ_INFO = ? WHERE ORDERID = ?",
+                (blob_json, order_id)
+            )
+            con.commit()
+            print(f"✅ 更新成功：{order_id}")
+        else:
+            print(f"⚠️ 无法更新，不存在的 ORDERID：{order_id}")
+    except Exception as e:
+        print(f"❌ 更新失败：{e}")
+
+
+def decode_unicode(text):
+    try:
+        return text.encode('unicode_escape').decode('ascii')
+    except Exception:
+        return text
+
